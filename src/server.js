@@ -35,6 +35,44 @@ app.use(
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
+// MongoDB Connection Handling with caching for Serverless environments
+const mongoUri = process.env.MONGODB_URI;
+let cachedConnection = null;
+
+export const connectDB = async () => {
+  if (mongoose.connection.readyState === 1) {
+    return mongoose.connection;
+  }
+  if (!mongoUri || mongoUri.trim() === '') {
+    return null;
+  }
+  if (cachedConnection) {
+    return cachedConnection;
+  }
+  try {
+    cachedConnection = mongoose.connect(mongoUri, {
+      serverSelectionTimeoutMS: 5000,
+    });
+    await cachedConnection;
+    console.log('Connected to MongoDB successfully.');
+    return cachedConnection;
+  } catch (err) {
+    console.warn('MongoDB connection error. Falling back to internal memory cache:', err.message);
+    cachedConnection = null;
+    return null;
+  }
+};
+
+// Ensure DB connection is initialized before processing request
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+  } catch {
+    // Graceful fallback
+  }
+  next();
+});
+
 // Root route
 app.get('/', (req, res) => {
   res.json({
@@ -76,22 +114,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-// MongoDB Connection Handling
-const mongoUri = process.env.MONGODB_URI;
-if (mongoUri && mongoUri.trim() !== '') {
-  console.log('Connecting to MongoDB...');
-  mongoose
-    .connect(mongoUri)
-    .then(() => {
-      console.log('Connected to MongoDB successfully.');
-    })
-    .catch((err) => {
-      console.warn('MongoDB connection error. Falling back to internal memory cache:', err.message);
-    });
-} else {
-  console.log('No MONGODB_URI provided in .env - Running with high-speed in-memory store.');
-}
-
 // Error and Process Handlers
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);
@@ -101,8 +123,8 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-// Start server if run directly
-if (process.env.NODE_ENV !== 'test') {
+// Start server if run directly (not in test or Vercel serverless environment)
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   app.listen(PORT, () => {
     console.log(`VitaSyn Free AI Backend running on http://localhost:${PORT}`);
   });
