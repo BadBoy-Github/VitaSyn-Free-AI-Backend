@@ -1,0 +1,23 @@
+{
+  "name": "vitasyn-free-ai-backend",
+  "version": "1.0.0",
+  "description": "VitaSyn Free AI Backend API - MERN Stack with Hugging Face AI Integration",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "@huggingface/inference": "^3.12.0",
+    "axios": "^1.8.2",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^8.12.1",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^10.0.10"
+  }
+}
