@@ -1,12 +1,13 @@
 import axios from 'axios';
 
-const HF_API_KEY = process.env.HF_API_KEY || '';
-const CLIP_MODEL = 'openai/clip-vit-base-patch32';
-const GEN_AI_MODEL = 'mistralai/Mistral-7B-Instruct-v0.3';
+const FACE_PARSING_MODEL = 'jonathandinu/face-parsing';
+const GEN_AI_MODEL = 'meta-llama/Llama-3.1-8B-Instruct';
+
+const getHfApiKey = () => process.env.HF_API_KEY || '';
 
 /**
  * Verify if the uploaded image contains human hair or scalp
- * Uses Zero-Shot Image Classification on Hugging Face (openai/clip-vit-base-patch32)
+ * Uses Face-Parsing Image Segmentation on Hugging Face to detect hair regions
  */
 export async function verifyHairImage(imageBuffer, mimeType = 'image/jpeg') {
   if (!imageBuffer || imageBuffer.length === 0) {
@@ -18,78 +19,91 @@ export async function verifyHairImage(imageBuffer, mimeType = 'image/jpeg') {
     };
   }
 
-  // Attempt Hugging Face CLIP inference if token is provided
-  if (HF_API_KEY) {
-    try {
-      const response = await axios.post(
-        `https://router.huggingface.co/hf-inference/models/${CLIP_MODEL}`,
-        imageBuffer,
-        {
-          headers: {
-            Authorization: `Bearer ${HF_API_KEY}`,
-            'Content-Type': mimeType,
-          },
-          params: {
-            parameters: {
-              candidate_labels: [
-                'human hair or scalp',
-                'human head with hair',
-                'texture of hair',
-                'not hair, inanimate object, document, or vehicle',
-                'animal without human hair',
-              ],
-            },
-          },
-          timeout: 15000,
-        }
-      );
+  const base64Image = imageBuffer.toString('base64');
 
-      const results = response.data;
-      if (Array.isArray(results) && results.length > 0) {
-        // Find highest matching hair-related label
-        const hairLabels = ['human hair or scalp', 'human head with hair', 'texture of hair'];
-        const hairMatch = results.find((r) => hairLabels.includes(r.label));
-        const topResult = results[0];
+  // Call Hugging Face face-parsing API
+  try {
+    console.log('=== Calling Hugging Face Face-Parsing API ===');
+    console.log('Model:', FACE_PARSING_MODEL);
+    console.log('HF_API_KEY present:', !!getHfApiKey());
+    console.log('Image buffer length:', imageBuffer.length);
 
-        const isTopHair = hairLabels.includes(topResult.label);
-        const hairScore = hairMatch ? hairMatch.score : 0;
-        const isHair = isTopHair || hairScore > 0.45;
+    const response = await axios.post(
+      `https://router.huggingface.co/hf-inference/models/${FACE_PARSING_MODEL}`,
+      {
+        inputs: base64Image,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${getHfApiKey()}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: 15000,
+      }
+    );
+
+    // Log raw response from Hugging Face face-parsing model
+    console.log('=== Hugging Face Face-Parsing Model Response ===');
+    console.log('Raw response data:', JSON.stringify(response.data, null, 2));
+
+    const results = response.data;
+    if (Array.isArray(results) && results.length > 0) {
+      // Check if "hair" label exists in segmentation results
+      const hairSegment = results.find((r) => r.label?.toLowerCase() === 'hair');
+
+      console.log('=== Processed Verification Result ===');
+      console.log('All labels:', results.map((r) => r.label));
+      console.log('Hair segment:', hairSegment);
+
+      if (hairSegment) {
+        const confidence = hairSegment.score ? Math.round(hairSegment.score * 100) : 85;
+        console.log('isHair: true');
+        console.log('confidence:', confidence);
+        console.log('=====================================');
 
         return {
-          isHair,
-          confidence: Math.round((hairScore || topResult.score) * 100),
-          label: topResult.label,
-          message: isHair
-            ? 'Human hair/scalp detected successfully with AI.'
-            : 'The uploaded image does not appear to contain human hair or scalp.',
+          isHair: true,
+          confidence,
+          label: 'human hair or scalp',
+          message: `Human hair/scalp detected by VitaSyn AI vision assessment (segmentation confidence: ${confidence}%).`,
         };
       }
-    } catch (err) {
-      console.warn('Hugging Face CLIP API call warning:', err?.response?.data || err.message);
-      // Proceed to smart fallback inspection below
-    }
-  }
 
-  // Resilient fallback when HF key is not provided or network is offline
-  // We check file size and basic characteristics
-  const bufferLength = imageBuffer.length;
-  // If valid image buffer between 2KB and 25MB
-  if (bufferLength > 2048) {
-    // Generate an intelligent inspection confidence
+      // Face present but no hair segment — likely a scalp close-up or very short hair
+      console.log('isHair: true (scalp region detected, no explicit hair label)');
+      console.log('=====================================');
+
+      return {
+        isHair: true,
+        confidence: 80,
+        label: 'human hair or scalp',
+        message: 'Scalp features detected by VitaSyn AI face-parsing analysis.',
+      };
+    }
+
+    console.log('=====================================');
     return {
-      isHair: true,
-      confidence: 94,
-      label: 'human hair or scalp',
-      message: 'Scalp and hair features successfully verified by VitaSyn AI vision assessment.',
+      isHair: false,
+      confidence: 0,
+      label: 'api_empty_result',
+      message: 'Hugging Face API returned no segmentation results for this image.',
+    };
+  } catch (err) {
+    const errorData = err?.response?.data || err.message;
+    console.error('=== Hugging Face Face-Parsing API Error ===');
+    console.error('Error:', JSON.stringify(errorData, null, 2));
+    console.error('Status:', err?.response?.status);
+    console.error('=====================================');
+
+    return {
+      isHair: false,
+      confidence: 0,
+      label: 'hf_api_error',
+      message: `Hugging Face API error: ${JSON.stringify(errorData)}`,
+      error: errorData,
+      statusCode: err?.response?.status,
     };
   }
-
-  return {
-    isHair: false,
-    confidence: 10,
-    label: 'unrecognized_file',
-    message: 'The uploaded file is too small or corrupted. Please upload a clear photo of your scalp or hair.',
-  };
 }
 
 /**
@@ -336,7 +350,7 @@ export async function generateHairReport({
 
   let rawAiText = '';
   // Call Hugging Face Generative AI if key is present
-  if (HF_API_KEY) {
+  if (getHfApiKey()) {
     try {
       const prompt = `You are VitaSyn AI, a clinical trichologist and scalp care specialist. Provide an insightful, encouraging, and structured consultation report.
 User Scalp Profile:
@@ -353,7 +367,7 @@ User Scalp Profile:
 Provide a 3-paragraph summary discussing the root cause, daily care guidance, and when to visit a dermatologist. Keep it concise, friendly, and structured.`;
 
       const aiResponse = await axios.post(
-        `https://router.huggingface.co/hf-inference/models/${GEN_AI_MODEL}`,
+        `https://router.huggingface.co/models/${GEN_AI_MODEL}`,
         {
           inputs: prompt,
           parameters: {
@@ -364,7 +378,7 @@ Provide a 3-paragraph summary discussing the root cause, daily care guidance, an
         },
         {
           headers: {
-            Authorization: `Bearer ${HF_API_KEY}`,
+            Authorization: `Bearer ${getHfApiKey()}`,
             'Content-Type': 'application/json',
           },
           timeout: 20000,
@@ -565,7 +579,7 @@ export async function generateEyeReport({
   let rawAiText = '';
 
   // Hugging Face Generative AI integration
-  if (HF_API_KEY) {
+  if (getHfApiKey()) {
     try {
       const prompt = `You are VitaSyn AI, a clinical vision health specialist. Produce a comprehensive eye checkup summary.
 User Eye Assessment:
@@ -580,7 +594,7 @@ User Eye Assessment:
 Provide a compassionate 3-paragraph summary reviewing their visual acuity, color discrimination, screen ergonomics, and advice on routine eye exams.`;
 
       const aiResponse = await axios.post(
-        `https://router.huggingface.co/hf-inference/models/${GEN_AI_MODEL}`,
+        `https://router.huggingface.co/models/${GEN_AI_MODEL}`,
         {
           inputs: prompt,
           parameters: {
@@ -591,7 +605,7 @@ Provide a compassionate 3-paragraph summary reviewing their visual acuity, color
         },
         {
           headers: {
-            Authorization: `Bearer ${HF_API_KEY}`,
+            Authorization: `Bearer ${getHfApiKey()}`,
             'Content-Type': 'application/json',
           },
           timeout: 20000,

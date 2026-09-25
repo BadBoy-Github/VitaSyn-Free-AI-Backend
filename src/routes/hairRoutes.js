@@ -59,6 +59,19 @@ router.post('/verify', upload.single('image'), async (req, res) => {
 
     const verificationResult = await verifyHairImage(imageBuffer, mimeType);
 
+    // Log final verification result for debugging
+    console.log('=== Hair Verification Final Result ===');
+    console.log('Verification result:', JSON.stringify(verificationResult, null, 2));
+    console.log('=====================================');
+
+    // Return appropriate HTTP status based on result
+    if (verificationResult.label === 'hf_api_error') {
+      return res.status(502).json({
+        success: false,
+        ...verificationResult,
+      });
+    }
+
     return res.json({
       success: true,
       ...verificationResult,
