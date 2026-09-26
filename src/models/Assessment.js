@@ -38,6 +38,8 @@ const AssessmentSchema = new mongoose.Schema(
       wateryEyesDuringTest: { type: Boolean },
       headacheAfterScreenUse: { type: Boolean },
       blurryVisionAfterProlongedUse: { type: Boolean },
+      symptomCount: { type: Number, default: 0 },
+      consultationLevel: { type: String, default: 'none' }, // 'none' | 'recommended' | 'mandatory'
       totalScore: { type: Number, default: 0 },
       grade: { type: String },
     },
@@ -56,6 +58,29 @@ const AssessmentSchema = new mongoose.Schema(
       lifestyleGuidance: { type: String },
       disclaimer: { type: String },
       rawAiText: { type: String },
+      // Eye-only: echoed test inputs so past reports can show what was measured
+      eyeMetrics: {
+        colorStagesPassed: { type: Number },
+        colorStagesTotal: { type: Number },
+        colorPoints: { type: Number },
+        colorPointsTotal: { type: Number },
+        leftEyeScore: { type: Number },
+        rightEyeScore: { type: Number },
+        bothEyesScore: { type: Number },
+        readingStagesPerEye: { type: Number },
+        readingStagesTotal: { type: Number },
+        screenTime: { type: String },
+        usingPhoneAtNight: { type: Boolean },
+        eyeIrritationDuringTest: { type: Boolean },
+        wateryEyesDuringTest: { type: Boolean },
+        headacheAfterScreenUse: { type: Boolean },
+        blurryVisionAfterProlongedUse: { type: Boolean },
+        symptomCount: { type: Number },
+      },
+      consultation: {
+        level: { type: String, default: 'none' }, // 'none' | 'recommended' | 'mandatory'
+        message: { type: String },
+      },
     },
     language: {
       type: String,

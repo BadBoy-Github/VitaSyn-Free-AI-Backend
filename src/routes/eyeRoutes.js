@@ -44,6 +44,7 @@ router.post('/analyze', async (req, res) => {
       wateryEyesDuringTest = false,
       headacheAfterScreenUse = false,
       blurryVisionAfterProlongedUse = false,
+      symptomCount = null,
       language = 'en',
     } = req.body;
 
@@ -65,6 +66,7 @@ router.post('/analyze', async (req, res) => {
       wateryEyesDuringTest: Boolean(wateryEyesDuringTest),
       headacheAfterScreenUse: Boolean(headacheAfterScreenUse),
       blurryVisionAfterProlongedUse: Boolean(blurryVisionAfterProlongedUse),
+      symptomCount,
       language,
     });
 
@@ -90,6 +92,8 @@ router.post('/analyze', async (req, res) => {
         wateryEyesDuringTest: Boolean(wateryEyesDuringTest),
         headacheAfterScreenUse: Boolean(headacheAfterScreenUse),
         blurryVisionAfterProlongedUse: Boolean(blurryVisionAfterProlongedUse),
+        symptomCount: report.eyeMetrics?.symptomCount ?? 0,
+        consultationLevel: report.consultation?.level ?? 'none',
         totalScore: report.overallScore,
         grade: report.grade,
       },

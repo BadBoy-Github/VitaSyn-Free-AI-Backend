@@ -400,7 +400,7 @@ Provide a 3-paragraph summary discussing the root cause, daily care guidance, an
     if (isTamil) {
       rawAiText = `உங்கள் உச்சந்தலை மற்றும் முடி நிலையை ஆய்வு செய்ததில், முதன்மை நிலையாக "${primaryCondition}" கண்டறியப்பட்டுள்ளது. உச்சந்தலை ஆரோக்கிய மதிப்பீடு ${healthScore}/100 ஆகும். வழக்கமான ஊட்டச்சத்து, மென்மையான இயற்கை எண்ணெய் பராமரிப்பு மற்றும் மருத்துவர் பரிந்துரைத்த முறையான சிகிச்சை மூலம் உங்கள் முடி ஆரோக்கியத்தை மேம்படுத்தலாம்.`;
     } else {
-      rawAiText = `Based on your diagnostic inputs and visual scalp profile, our AI analysis identified indications of ${primaryCondition}. Your Scalp Vitality Score is ${healthScore}/100. Following targeted botanical scalp nourishment, maintaining follicular hygiene, and avoiding aggressive chemical treatments will restore scalp equilibrium.`;
+      rawAiText = `Based on your diagnostic inputs and visual scalp profile, our AI analysis identified indications of ${primaryCondition}. Your Scalp Vitality Index is ${healthScore}/100. Following targeted botanical scalp nourishment, maintaining follicular hygiene, and avoiding aggressive chemical treatments will restore scalp equilibrium.`;
     }
   }
 
@@ -442,6 +442,7 @@ export async function generateEyeReport({
   wateryEyesDuringTest = false,
   headacheAfterScreenUse = false,
   blurryVisionAfterProlongedUse = false,
+  symptomCount = null,
   language = 'en',
 }) {
   const isTamil = language === 'ta';
@@ -449,6 +450,19 @@ export async function generateEyeReport({
   const stagesPerEye = 5;
   const eyeModes = 3;
   const maxAcuity = stagesPerEye * eyeModes; // 15
+
+  // Number of the five lifestyle/symptom questions answered "Yes".
+  // Trust the client value when supplied, otherwise derive it from the flags.
+  const derivedSymptomCount = [
+    usingPhoneAtNight,
+    eyeIrritationDuringTest,
+    wateryEyesDuringTest,
+    headacheAfterScreenUse,
+    blurryVisionAfterProlongedUse,
+  ].filter(Boolean).length;
+  const symptomFlags = symptomCount === null || symptomCount === undefined
+    ? derivedSymptomCount
+    : Number(symptomCount);
 
   // Composite calculation
   const colorPercentage = Math.round((colorStagesPassed / totalStages) * 100);
@@ -463,6 +477,25 @@ export async function generateEyeReport({
   if (headacheAfterScreenUse) overallScore -= 3;
   if (blurryVisionAfterProlongedUse) overallScore -= 3;
   overallScore = Math.max(20, Math.min(100, overallScore));
+
+  // Consultation escalation driven by the overall index
+  // <= 30 -> mandatory doctor consultation
+  // 31-60 -> doctor consultation advised
+  let consultationLevel = 'none';
+  if (overallScore <= 30) consultationLevel = 'mandatory';
+  else if (overallScore <= 60) consultationLevel = 'recommended';
+
+  const consultationMessage = isTamil
+    ? consultationLevel === 'mandatory'
+      ? 'உங்கள் ஒட்டுமொத்த கண் நலக் குறியீடு குறைவாக உள்ளது. உங்கள் கண் நலத்திற்கு உரிய மருத்துவரை (Optometrist / Ophthalmologist) கட்டாயமாகச் சந்திப்பது அவசியம்.'
+      : consultationLevel === 'recommended'
+      ? 'உங்கள் ஒட்டுமொத்த கண் நலக் குறியீடு சீரான நிலையில் உள்ளது. விதிவிலக்குக் கண் பரிசோதனைக்காக ஒரு கண் மருத்துவரைச் சந்திப்பது நல்லது.'
+      : 'உங்கள் ஒட்டுமொத்த கண் நலக் குறியீடு சிறப்பாக உள்ளது. தொடர்ந்து ஆரோக்கியமான பழக்கங்களைப் பேணுங்கள்.'
+    : consultationLevel === 'mandatory'
+    ? 'Your overall eye wellness index is low. It is mandatory to consult an appropriate eye doctor (Optometrist / Ophthalmologist) as soon as possible.'
+    : consultationLevel === 'recommended'
+    ? 'Your overall eye wellness index is in the moderate range. We recommend consulting an eye doctor for a routine check-up.'
+    : 'Your overall eye wellness index is in a healthy range. Keep maintaining your healthy screen habits.';
 
   // Determine Unique Code
   const uniqueCode = `EYE-C${colorStagesPassed}-A${acuityScore}-D${dryEyes ? '1' : '0'}-P${havePower ? (powerType === 'positive' ? 'POS' : 'NEG') : '0'}`;
@@ -494,8 +527,8 @@ export async function generateEyeReport({
 
   // Findings
   if (isTamil) {
-    findings.push(`வண்ண வேறுபாடு கண்டறிதல் மதிப்பீடு: 10 நிலைகளில் ${colorStagesPassed} நிலைகள் நிறைவு செய்யப்பட்டன (${colorStatus}).`);
-    findings.push(`வாசிப்பு பார்வைத் திறன் மதிப்பீடு: 3 கண் பரிசோதனைகளில் (இடது, வலது, இரு கண்களும்) 15 சொல் அளவு நிலைகளில் ${acuityScore} நிலைகள் தெளிவாக வாசிக்கப்பட்டன (${grade}).`);
+    findings.push(`வண்ண வேறுபாடு கண்டறிதல் குறியீடு: 10 நிலைகளில் ${colorStagesPassed} நிலைகள் நிறைவு செய்யப்பட்டன (${colorStatus}).`);
+    findings.push(`வாசிப்பு பார்வைத் திறன் குறியீடு: 3 கண் பரிசோதனைகளில் (இடது, வலது, இரு கண்களும்) 15 சொல் அளவு நிலைகளில் ${acuityScore} நிலைகள் தெளிவாக வாசிக்கப்பட்டன (${grade}).`);
     if (leftEyeScore !== null && rightEyeScore !== null) {
       findings.push(`கண் ஒப்பீடு: இடது கண் ${leftEyeScore}/5, வலது கண் ${rightEyeScore}/5${bothEyesScore !== null ? `, இரு கண்களும் ${bothEyesScore}/5` : ''}.`);
       const eyeGap = Math.abs(leftEyeScore - rightEyeScore);
@@ -504,8 +537,8 @@ export async function generateEyeReport({
       }
     }
   } else {
-    findings.push(`Color differentiation score: ${colorStagesPassed}/10 stages completed (${colorStatus}).`);
-    findings.push(`Reading acuity score: ${acuityScore}/15 word-size stages read clearly across 3 eye tests — left, right and both eyes (${grade}).`);
+    findings.push(`Color differentiation index: ${colorStagesPassed}/10 stages completed (${colorStatus}).`);
+    findings.push(`Reading acuity index: ${acuityScore}/15 word-size stages read clearly across 3 eye tests — left, right and both eyes (${grade}).`);
     if (leftEyeScore !== null && rightEyeScore !== null) {
       findings.push(`Eye comparison: left ${leftEyeScore}/5, right ${rightEyeScore}/5${bothEyesScore !== null ? `, both ${bothEyesScore}/5` : ''}.`);
       const eyeGap = Math.abs(leftEyeScore - rightEyeScore);
@@ -513,6 +546,32 @@ export async function generateEyeReport({
         findings.push('A notable difference in reading performance between the left and right eye was observed.');
       }
     }
+  }
+
+  // Overall index and consultation escalation
+  findings.push(
+    isTamil
+      ? `ஒட்டுமொத்த கண் நலக் குறியீடு: ${overallScore}/100. ${consultationMessage}`
+      : `Overall eye wellness index: ${overallScore}/100. ${consultationMessage}`
+  );
+
+  if (consultationLevel === 'mandatory') {
+    recommendations.unshift(
+      isTamil
+        ? 'இது கட்டாயமாகும்: உங்கள் ஒட்டுமொத்த கண் நலக் குறியீடு 30-ஐ விடக் குறைவாக உள்ளது. தயவுசெய்து கண் மருத்துவரை (Optometrist அல்லது Ophthalmologist) அணுகவும்.'
+        : 'This is mandatory: your overall eye wellness index is at or below 30. Please consult an optometrist or ophthalmologist without delay.'
+    );
+    donts.unshift(
+      isTamil
+        ? 'மருத்துவர் ஆலோசனையின்றி சொஞ்சுகள், கண் drops அல்லது விழித்திரை மாதிரிகளை தானாகப் பயன்படுத்துவதைத் தவிர்க்கவும்.'
+        : 'Do not self-start medicated eye drops, steroid preparations, or contact lenses without advice from an eye doctor.'
+    );
+  } else if (consultationLevel === 'recommended') {
+    recommendations.unshift(
+      isTamil
+        ? 'உங்கள் ஒட்டுமொத்த கண் நலக் குறியீடு 60-ஐ விடக் குறைவாக உள்ளது. ஒரு கண் மருத்துவரைச் சந்தித்து விதிவிலக்குப் பரிசோதனை செய்யுமாறு பரிந்துரைக்கிறோம்.'
+        : 'Your overall eye wellness index is at or below 60. We advise consulting an eye doctor for a detailed vision check.'
+    );
   }
 
   // Screen-time and lifestyle questionnaire
@@ -693,9 +752,9 @@ export async function generateEyeReport({
       const prompt = `You are VitaSyn AI, a clinical vision health specialist. Produce a comprehensive eye checkup summary.
 User Eye Assessment:
 - Unique Case Code: ${uniqueCode}
-- Color Discrimination Score: ${colorStagesPassed}/10 (${colorPercentage}%)
-- Visual Acuity Reading Score: ${acuityScore}/15 across 3 eye tests (${acuityPercentage}%)
-${leftEyeScore !== null ? `- Left Eye Reading: ${leftEyeScore}/5\n` : ''}${rightEyeScore !== null ? `- Right Eye Reading: ${rightEyeScore}/5\n` : ''}${bothEyesScore !== null ? `- Both Eyes Reading: ${bothEyesScore}/5\n` : ''}- Dry Eyes Reported: ${dryEyes ? 'Yes' : 'No'}
+- Color Discrimination Index: ${colorStagesPassed}/10 stages (${colorPercentage}%), ${colorPoints} points earned
+- Visual Acuity Reading Index: ${acuityScore}/15 across 3 eye tests (${acuityPercentage}%)
+${leftEyeScore !== null ? `- Left Eye Reading: ${leftEyeScore}/5\n` : ''}${rightEyeScore !== null ? `- Right Eye Reading: ${rightEyeScore}/5\n` : ''}${bothEyesScore !== null ? `- Both Eyes Reading: ${bothEyesScore}/5\n` : ''}${leftEyeScore !== null && rightEyeScore !== null ? `- Left vs Right Difference: ${Math.abs(leftEyeScore - rightEyeScore)} stages\n` : ''}- Dry Eyes Reported: ${dryEyes ? 'Yes' : 'No'}
 - Wears Corrective Power: ${havePower ? `Yes (${powerType})` : 'No'}
 - Daily Screen Time: ${screenTime === 'below1' ? 'Under 1 hour' : screenTime === '1to3' ? '1 to 3 hours' : screenTime === 'above3' ? 'Over 3 hours' : 'Not reported'}
 - Uses Phone at Night: ${usingPhoneAtNight ? 'Yes' : 'No'}
@@ -703,10 +762,13 @@ ${leftEyeScore !== null ? `- Left Eye Reading: ${leftEyeScore}/5\n` : ''}${right
 - Watery Eyes During Test: ${wateryEyesDuringTest ? 'Yes' : 'No'}
 - Headache After Screen Use: ${headacheAfterScreenUse ? 'Yes' : 'No'}
 - Blurry Vision After Prolonged Use: ${blurryVisionAfterProlongedUse ? 'Yes' : 'No'}
-- Overall Eye Score: ${overallScore}/100
+- Total Symptom Flags Reported: ${symptomFlags} of 5
+- Overall Eye Wellness Index: ${overallScore}/100
+- Consultation Status: ${consultationLevel === 'mandatory' ? 'MANDATORY eye doctor consultation required' : consultationLevel === 'recommended' ? 'Eye doctor consultation advised' : 'No consultation required'}
 - Language: ${isTamil ? 'Tamil (தமிழ்)' : 'English'}
 
-Provide a compassionate 3-paragraph summary reviewing their per-eye visual acuity, color discrimination, screen ergonomics, lifestyle risk factors, and advice on routine eye exams.`;
+Provide a compassionate 3-paragraph summary reviewing their per-eye visual acuity, color discrimination, screen ergonomics, lifestyle risk factors, and advice on routine eye exams.
+${consultationLevel === 'mandatory' ? 'IMPORTANT: The overall index is at or below 30. The FIRST paragraph must clearly and firmly state that consulting an eye doctor (optometrist or ophthalmologist) is mandatory and should not be delayed.' : consultationLevel === 'recommended' ? 'IMPORTANT: The overall index is between 31 and 60. The summary must advise consulting an eye doctor for a routine check-up.' : 'The overall index is healthy. Summarise maintenance habits rather than clinical referrals.'}`;
 
       const aiResponse = await axios.post(
         `https://router.huggingface.co/models/${GEN_AI_MODEL}`,
@@ -739,9 +801,9 @@ Provide a compassionate 3-paragraph summary reviewing their per-eye visual acuit
 
   if (!rawAiText) {
     if (isTamil) {
-      rawAiText = `உங்கள் கண்கள் பரிசோதனை முடிவுகள் ஆய்வு செய்யப்பட்டன. வண்ண வேறுபாடு கண்டறிதல் நிலை ${colorStagesPassed}/10 மற்றும் 3 கண் பரிசோதனைகளில் வாசிப்புத் திறன் ${acuityScore}/15 ஆகும். ஒட்டுமொத்த கண் நல மதிப்பீடு ${overallScore}/100. திரை பயன்பாட்டின் போது 20-20-20 விதியை தவறாமல் பின்பற்றி, இரவில் திரை பயன்பாட்டைத் தவிர்த்து உங்கள் பார்வை நலனைப் பாதுகாத்துக் கொள்ளுங்கள்.`;
+      rawAiText = `உங்கள் கண்கள் பரிசோதனை முடிவுகள் ஆய்வு செய்யப்பட்டன. வண்ண வேறுபாடு கண்டறிதல் நிலை ${colorStagesPassed}/10 மற்றும் 3 கண் பரிசோதனைகளில் வாசிப்புத் திறன் ${acuityScore}/15 ஆகும். ஒட்டுமொத்த கண் நலக் குறியீடு ${overallScore}/100. ${consultationMessage} திரை பயன்பாட்டின் போது 20-20-20 விதியை தவறாமல் பின்பற்றி, இரவில் திரை பயன்பாட்டைத் தவிர்த்து உங்கள் பார்வை நலனைப் பாதுகாத்துக் கொள்ளுங்கள்.`;
     } else {
-      rawAiText = `Your digital visual acuity and color perception evaluation yielded an overall Eye Wellness Index of ${overallScore}/100. You achieved ${colorStagesPassed}/10 in chromatic tile differentiation and read ${acuityScore}/15 word-size stages across the left, right and both-eye tests. Practicing visual ergonomics, proper screen distance, avoiding late-night phone use, and maintaining ocular hydration will support sustained visual comfort.`;
+      rawAiText = `Your digital visual acuity and color perception evaluation yielded an overall Eye Wellness Index of ${overallScore}/100. You achieved ${colorStagesPassed}/10 in chromatic tile differentiation and read ${acuityScore}/15 word-size stages across the left, right and both-eye tests. ${consultationMessage} Practicing visual ergonomics, proper screen distance, avoiding late-night phone use, and maintaining ocular hydration will support sustained visual comfort.`;
     }
   }
 
@@ -759,6 +821,30 @@ Provide a compassionate 3-paragraph summary reviewing their per-eye visual acuit
     grade,
     colorStatus,
     uniqueResultCode: uniqueCode,
+    consultation: {
+      level: consultationLevel,
+      message: consultationMessage,
+    },
+    // Every raw test input, echoed back so the result page can show the user
+    // exactly what was measured instead of only the derived narrative.
+    eyeMetrics: {
+      colorStagesPassed,
+      colorStagesTotal: totalStages,
+      colorPoints,
+      colorPointsTotal: totalStages * 10,
+      leftEyeScore,
+      rightEyeScore,
+      bothEyesScore,
+      readingStagesPerEye: stagesPerEye,
+      readingStagesTotal: maxAcuity,
+      screenTime,
+      usingPhoneAtNight,
+      eyeIrritationDuringTest,
+      wateryEyesDuringTest,
+      headacheAfterScreenUse,
+      blurryVisionAfterProlongedUse,
+      symptomCount: symptomFlags,
+    },
     clinicalFindings: findings,
     dos,
     donts,
