@@ -429,23 +429,39 @@ Provide a 3-paragraph summary discussing the root cause, daily care guidance, an
 export async function generateEyeReport({
   colorStagesPassed = 0, // 0 to 10
   colorPoints = 0, // points from color game
-  acuityScore = 0, // 0 to 5
+  acuityScore = 0, // 0 to 15 (3 eye modes x 5 reading stages)
+  leftEyeScore = null, // 0 to 5
+  rightEyeScore = null, // 0 to 5
+  bothEyesScore = null, // 0 to 5
   dryEyes = false,
   havePower = false,
   powerType = 'none', // 'positive' | 'negative' | 'none'
+  screenTime = null, // 'below1' | '1to3' | 'above3'
+  usingPhoneAtNight = false,
+  eyeIrritationDuringTest = false,
+  wateryEyesDuringTest = false,
+  headacheAfterScreenUse = false,
+  blurryVisionAfterProlongedUse = false,
   language = 'en',
 }) {
   const isTamil = language === 'ta';
   const totalStages = 10;
-  const maxAcuity = 5;
+  const stagesPerEye = 5;
+  const eyeModes = 3;
+  const maxAcuity = stagesPerEye * eyeModes; // 15
 
   // Composite calculation
   const colorPercentage = Math.round((colorStagesPassed / totalStages) * 100);
-  const acuityPercentage = Math.round((acuityScore / maxAcuity) * 100);
+  const acuityPercentage = Math.round((Math.min(acuityScore, maxAcuity) / maxAcuity) * 100);
 
   let overallScore = Math.round(colorPercentage * 0.55 + acuityPercentage * 0.45);
   if (dryEyes) overallScore -= 8;
   if (havePower) overallScore -= 6;
+  if (screenTime === 'above3') overallScore -= 5;
+  else if (screenTime === '1to3') overallScore -= 2;
+  if (usingPhoneAtNight) overallScore -= 4;
+  if (headacheAfterScreenUse) overallScore -= 3;
+  if (blurryVisionAfterProlongedUse) overallScore -= 3;
   overallScore = Math.max(20, Math.min(100, overallScore));
 
   // Determine Unique Code
@@ -463,9 +479,9 @@ export async function generateEyeReport({
     colorStatus = isTamil ? 'சிறப்பான முப்பரிமாண வண்ண உணர்தல் திறன்' : 'Superior Trichromatic Color Perception';
   }
 
-  if (acuityScore <= 2) {
+  if (acuityScore <= 6) {
     grade = isTamil ? 'குறைந்த வாசிப்பு பார்வைத் திறன் (மங்கலான பார்வை கண்டறியப்பட்டது)' : 'Reduced Visual Acuity (Screen distance blurriness detected)';
-  } else if (acuityScore <= 4) {
+  } else if (acuityScore <= 11) {
     grade = isTamil ? 'மிதமான வாசிப்பு பார்வைத் திறன் (லேசான கண் சோர்வு)' : 'Moderate Visual Acuity (Mild reading strain)';
   } else {
     grade = isTamil ? 'மிகச்சிறந்த தெளிவான வாசிப்பு பார்வைத் திறன்' : 'Optimal High-Acuity Reading Precision';
@@ -479,10 +495,103 @@ export async function generateEyeReport({
   // Findings
   if (isTamil) {
     findings.push(`வண்ண வேறுபாடு கண்டறிதல் மதிப்பீடு: 10 நிலைகளில் ${colorStagesPassed} நிலைகள் நிறைவு செய்யப்பட்டன (${colorStatus}).`);
-    findings.push(`வாசிப்பு பார்வைத் திறன் மதிப்பீடு: 5 எழுத்து அளவுகளில் ${acuityScore} அளவுகள் தெளிவாக அடையாளம் காணப்பட்டன (${grade}).`);
+    findings.push(`வாசிப்பு பார்வைத் திறன் மதிப்பீடு: 3 கண் பரிசோதனைகளில் (இடது, வலது, இரு கண்களும்) 15 சொல் அளவு நிலைகளில் ${acuityScore} நிலைகள் தெளிவாக வாசிக்கப்பட்டன (${grade}).`);
+    if (leftEyeScore !== null && rightEyeScore !== null) {
+      findings.push(`கண் ஒப்பீடு: இடது கண் ${leftEyeScore}/5, வலது கண் ${rightEyeScore}/5${bothEyesScore !== null ? `, இரு கண்களும் ${bothEyesScore}/5` : ''}.`);
+      const eyeGap = Math.abs(leftEyeScore - rightEyeScore);
+      if (eyeGap >= 2) {
+        findings.push('இடது மற்றும் வலது கண் வாசிப்பு மட்டங்களுக்கிடையே குறிப்பிடத்தக்க வேறுபாடு கண்டறியப்பட்டது.');
+      }
+    }
   } else {
     findings.push(`Color differentiation score: ${colorStagesPassed}/10 stages completed (${colorStatus}).`);
-    findings.push(`Reading acuity score: ${acuityScore}/5 font sizes clearly recognized (${grade}).`);
+    findings.push(`Reading acuity score: ${acuityScore}/15 word-size stages read clearly across 3 eye tests — left, right and both eyes (${grade}).`);
+    if (leftEyeScore !== null && rightEyeScore !== null) {
+      findings.push(`Eye comparison: left ${leftEyeScore}/5, right ${rightEyeScore}/5${bothEyesScore !== null ? `, both ${bothEyesScore}/5` : ''}.`);
+      const eyeGap = Math.abs(leftEyeScore - rightEyeScore);
+      if (eyeGap >= 2) {
+        findings.push('A notable difference in reading performance between the left and right eye was observed.');
+      }
+    }
+  }
+
+  // Screen-time and lifestyle questionnaire
+  if (screenTime === 'above3') {
+    findings.push(
+      isTamil
+        ? 'நீண்ட திரை நேரம் (3 மணிக்கு மேல்): கண் சோர்வு மற்றும் கண்புல்லின் தளர்வு அபாயம் அதிகம்.'
+        : 'Prolonged screen exposure (over 3 hours daily): elevated risk of eye fatigue and accommodative stress.'
+    );
+    recommendations.push(
+      isTamil
+        ? 'தினமும் 20-20-20 விதியைக் கடைவாகப் பின்பற்றவும் மற்றும் திரை பயன்பாட்டை 2 மணி இடங்களில் இடைவெளிக்கு உட்படுத்தவும்.'
+        : 'Follow the 20-20-20 rule strictly and break screen use into sessions of under 2 hours.'
+    );
+  } else if (screenTime === '1to3') {
+    findings.push(
+      isTamil
+        ? 'மிதமான திரை நேரம் (1–3 மணி): இது பொதுவான வரம்புக்குள் இருந்தாலும் இடைவெளிகள் அவசியம்.'
+        : 'Moderate screen time (1–3 hours daily): within a common range, but scheduled breaks remain important.'
+    );
+  } else {
+    findings.push(
+      isTamil
+        ? 'குறைந்த திரை நேரம் (1 மணிக்குக் குறைவு): கண் சோர்வு அபாயம் குறைவாக உள்ளது.'
+        : 'Low screen exposure (under 1 hour daily): low overall risk of screen-induced eye strain.'
+    );
+  }
+
+  if (usingPhoneAtNight) {
+    findings.push(
+      isTamil
+        ? 'படுக்கையில் இரவுப் பேசி பயன்பாடு: மங்கலான பார்வை, கண் வறட்சி மற்றும் உறக்கத்தின் தாக்கத்தை அதிகரிக்கிறது.'
+        : 'Late-night phone use in bed: linked to blurred vision, dry eyes and reduced sleep quality.'
+    );
+    donts.push(
+      isTamil
+        ? 'படுக்கையில் இரவில் திரை பார்ப்பதைத் தவிர்க்கவும்; தூக்கத்திற்கு முன் ஒரு மணி நேரம் திரையைத் தவிர்க்கவும்.'
+        : 'Avoid screen use in bed and switch off all displays at least one hour before sleep.'
+    );
+  }
+
+  if (eyeIrritationDuringTest) {
+    findings.push(
+      isTamil
+        ? 'பரிசோதனை நேரத்தில் கண் எரிச்சல் அறிகுறிப்படுத்தப்பட்டது — கண்புல்ல் வலுவிழப்பு அல்லது அலர்ஜி காரணமாக இருக்கலாம்.'
+        : 'Eye irritation reported during the test, suggesting corneal dryness or a mild allergic response.'
+    );
+  }
+
+  if (wateryEyesDuringTest) {
+    findings.push(
+      isTamil
+        ? 'பரிசோதனை நேரத்தில் கண் நீர்த்தல் அறிகுறி — உலர்ந்த கண்ணைத் தூண்டும் திருப்பமுறு கண்ணீர் சுரப்பு.'
+        : 'Watering eyes during the test, indicating reflex tear production triggered by visual surface dryness.'
+    );
+  }
+
+  if (headacheAfterScreenUse) {
+    findings.push(
+      isTamil
+        ? 'திரை பயன்பாட்டிற்குப் பிறகு தலைவலி — கண் சோர்வு மற்றும் கழுத்து-தோள் தசைப் பாதிப்புடன் தொடர்புடையது.'
+        : 'Headache after screen use, commonly linked to ocular strain and neck/shoulder tension.'
+    );
+  }
+
+  if (blurryVisionAfterProlongedUse) {
+    findings.push(
+      isTamil
+        ? 'நீண்ட பயன்பாட்டிற்குப் பிறகு மங்கலான பார்வை — கண்புல்லின் தசைகள் தொடர்ந்து இறுக்கமாக இருப்பதால் கூடலாம்.'
+        : 'Blurred vision after prolonged use, often caused by sustained contraction of the ciliary muscle.'
+    );
+  }
+
+  if (eyeIrritationDuringTest || wateryEyesDuringTest || headacheAfterScreenUse || blurryVisionAfterProlongedUse) {
+    recommendations.push(
+      isTamil
+        ? 'தொடர்ந்து அறிகுறிகள் இருந்தால், ஒரு கண் மருத்துவரிடம் முழுமையான பரிசோதனை மேற்கொள்ளுமாறு அறிவுறுத்தப்படுகிறது.'
+        : 'If these symptoms persist, schedule a comprehensive dilated eye examination with an optometrist.'
+    );
   }
 
   if (dryEyes) {
@@ -585,13 +694,19 @@ export async function generateEyeReport({
 User Eye Assessment:
 - Unique Case Code: ${uniqueCode}
 - Color Discrimination Score: ${colorStagesPassed}/10 (${colorPercentage}%)
-- Visual Acuity Reading Score: ${acuityScore}/5 (${acuityPercentage}%)
-- Dry Eyes Reported: ${dryEyes ? 'Yes' : 'No'}
+- Visual Acuity Reading Score: ${acuityScore}/15 across 3 eye tests (${acuityPercentage}%)
+${leftEyeScore !== null ? `- Left Eye Reading: ${leftEyeScore}/5\n` : ''}${rightEyeScore !== null ? `- Right Eye Reading: ${rightEyeScore}/5\n` : ''}${bothEyesScore !== null ? `- Both Eyes Reading: ${bothEyesScore}/5\n` : ''}- Dry Eyes Reported: ${dryEyes ? 'Yes' : 'No'}
 - Wears Corrective Power: ${havePower ? `Yes (${powerType})` : 'No'}
+- Daily Screen Time: ${screenTime === 'below1' ? 'Under 1 hour' : screenTime === '1to3' ? '1 to 3 hours' : screenTime === 'above3' ? 'Over 3 hours' : 'Not reported'}
+- Uses Phone at Night: ${usingPhoneAtNight ? 'Yes' : 'No'}
+- Eye Irritation During Test: ${eyeIrritationDuringTest ? 'Yes' : 'No'}
+- Watery Eyes During Test: ${wateryEyesDuringTest ? 'Yes' : 'No'}
+- Headache After Screen Use: ${headacheAfterScreenUse ? 'Yes' : 'No'}
+- Blurry Vision After Prolonged Use: ${blurryVisionAfterProlongedUse ? 'Yes' : 'No'}
 - Overall Eye Score: ${overallScore}/100
 - Language: ${isTamil ? 'Tamil (தமிழ்)' : 'English'}
 
-Provide a compassionate 3-paragraph summary reviewing their visual acuity, color discrimination, screen ergonomics, and advice on routine eye exams.`;
+Provide a compassionate 3-paragraph summary reviewing their per-eye visual acuity, color discrimination, screen ergonomics, lifestyle risk factors, and advice on routine eye exams.`;
 
       const aiResponse = await axios.post(
         `https://router.huggingface.co/models/${GEN_AI_MODEL}`,
@@ -624,9 +739,9 @@ Provide a compassionate 3-paragraph summary reviewing their visual acuity, color
 
   if (!rawAiText) {
     if (isTamil) {
-      rawAiText = `உங்கள் கண்கள் பரிசோதனை முடிவுகள் ஆய்வு செய்யப்பட்டன. வண்ண வேறுபாடு கண்டறிதல் நிலை ${colorStagesPassed}/10 மற்றும் வாசிப்புத் திறன் ${acuityScore}/5 ஆகும். ஒட்டுமொத்த கண் நல மதிப்பீடு ${overallScore}/100. திரை பயன்பாட்டின் போது 20-20-20 விதியை தவறாமல் பின்பற்றி உங்கள் பார்வை நலனைப் பாதுகாத்துக் கொள்ளுங்கள்.`;
+      rawAiText = `உங்கள் கண்கள் பரிசோதனை முடிவுகள் ஆய்வு செய்யப்பட்டன. வண்ண வேறுபாடு கண்டறிதல் நிலை ${colorStagesPassed}/10 மற்றும் 3 கண் பரிசோதனைகளில் வாசிப்புத் திறன் ${acuityScore}/15 ஆகும். ஒட்டுமொத்த கண் நல மதிப்பீடு ${overallScore}/100. திரை பயன்பாட்டின் போது 20-20-20 விதியை தவறாமல் பின்பற்றி, இரவில் திரை பயன்பாட்டைத் தவிர்த்து உங்கள் பார்வை நலனைப் பாதுகாத்துக் கொள்ளுங்கள்.`;
     } else {
-      rawAiText = `Your digital visual acuity and color perception evaluation yielded an overall Eye Wellness Index of ${overallScore}/100. You achieved ${colorStagesPassed}/10 in chromatic tile differentiation and read ${acuityScore}/5 font scale tiers successfully. Practicing visual ergonomics, proper screen distance, and maintaining ocular hydration will support sustained visual comfort.`;
+      rawAiText = `Your digital visual acuity and color perception evaluation yielded an overall Eye Wellness Index of ${overallScore}/100. You achieved ${colorStagesPassed}/10 in chromatic tile differentiation and read ${acuityScore}/15 word-size stages across the left, right and both-eye tests. Practicing visual ergonomics, proper screen distance, avoiding late-night phone use, and maintaining ocular hydration will support sustained visual comfort.`;
     }
   }
 
@@ -637,6 +752,10 @@ Provide a compassionate 3-paragraph summary reviewing their visual acuity, color
     colorScore: colorPoints,
     colorStagesPassed,
     acuityScore,
+    maxAcuity,
+    leftEyeScore,
+    rightEyeScore,
+    bothEyesScore,
     grade,
     colorStatus,
     uniqueResultCode: uniqueCode,

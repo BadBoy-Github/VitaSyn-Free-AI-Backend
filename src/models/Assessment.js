@@ -25,10 +25,19 @@ const AssessmentSchema = new mongoose.Schema(
     eyeData: {
       colorStagesPassed: { type: Number, default: 0 },
       colorScore: { type: Number, default: 0 },
-      acuityScore: { type: Number, default: 0 },
+      acuityScore: { type: Number, default: 0 }, // out of 15 (3 eye modes x 5 stages)
+      leftEyeScore: { type: Number, default: null },
+      rightEyeScore: { type: Number, default: null },
+      bothEyesScore: { type: Number, default: null },
       dryEyes: { type: Boolean },
       havePower: { type: Boolean },
       powerType: { type: String }, // 'positive' | 'negative' | 'none'
+      screenTime: { type: String }, // 'below1' | '1to3' | 'above3'
+      usingPhoneAtNight: { type: Boolean },
+      eyeIrritationDuringTest: { type: Boolean },
+      wateryEyesDuringTest: { type: Boolean },
+      headacheAfterScreenUse: { type: Boolean },
+      blurryVisionAfterProlongedUse: { type: Boolean },
       totalScore: { type: Number, default: 0 },
       grade: { type: String },
     },
